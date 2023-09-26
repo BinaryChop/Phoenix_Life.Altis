@@ -1,0 +1,305 @@
+/* author: preller @ freudenhaus <codepreller@hirnstrom.net> for Freudenhaus Altis Life
+*
+* processMulitpleItems.sqf
+* processes any number of input items into one output item. progress bar is from bryan "tonic" boardwines fn_processAction.sqf.
+*
+* Please feel free to use and modify it, but remember to credit the author.
+*
+* PARAMS:
+* _this select 3: String - processor type
+*
+*/
+
+private ["_random","_inputItems", "_outputItem", "_inputItemsNeeded", "_outputItemAmount", "_itemsInv", "_itemsNeeded", "_inputItemsDeleted", "_ui", "_progress", "_pgText", "_cP", "_productionAmount", "_possibleProductionAmount","_processor","_formatedProcessingInfo","_hasLicense","_licenseNeeded","_processingCost","_type","_productionInfo"];
+
+if (isServer) exitWith {};
+
+if (life_is_processing) exitWith {hint "Der Kollege ist beschäftigt. Bitte nicht stressen!";};    
+
+//parameter
+_processor = [_this,0,ObjNull,[ObjNull]] call BIS_fnc_param;
+_type = [_this,3,"",[""]] call BIS_fnc_param;
+
+//Error check. taken from tonic.
+if(isNull _processor OR _type == "" OR (player distance _processor > 5)) exitWith {};
+if(vehicle player != player) exitwith {hint format["Du darfst nicht im Fahrzeug sitzen"];};
+if (side player == west) exitWith {hint "Du bist kein Zivilist."};
+// if(life_happy < 2) exitWith {hint "Du bist nicht glücklich genug um etwas zu verarbeiten!"};
+life_is_processing = true;
+
+
+//define your production line here
+_productionInfo = switch (_type) do
+{	
+
+//Metalle + Schmuck + Edelsteine
+
+	//oel
+	case "oil": {[["oilu"],[3],"oilp",1,"chem1",500];};
+	case "oil2": {[["oilu"],[3],"oilp",2,"chem2",500];};
+	//Kunststoff
+		case "plastic": {[["oilp"],[1],"plastic",3,"chem2",500];};
+		case "plastic2": {[["oilp"],[1],"plastic",4,"chem3",500];};
+		case "flaschp": {[["plastic"],[1],"flaschp",4,"chem3",500];};
+	//Flaschen
+	case "flasch": {[["flaschu"],[6],"plastic",1,"food1",2100];};
+	//Benzin
+	case "benzin": {[["oilp"],[2],"benzin",5,"chem2",500];};
+	case "benzin2": {[["oilp"],[2],"benzin",3,"chem3",500];};
+
+	//Kupferbarren
+	case "copper": {[["copperore","coal"],[4,2],"copper_r",1,"lowin",500];};
+	case "copper2": {[["copperore","coal"],[4,2],"copper_r",2,"midin",500];};
+
+	//Eisenbarren
+	case "iron": {[["ironore","coal"],[5,2],"iron_r",2,"lowin",500];};
+	case "iron2": {[["ironore","coal"],[5,3],"iron_r",3,"midin",500];};
+	case "scrapmetal": {[["scrapmetal","coal"],[6,3],"iron_r",3,"lowin",500];};
+
+	//Glas
+	case "sand": {[["sand","coal"],[4,2],"glass",1,"lowin",500];};
+	case "sand2": {[["sand","coal"],[4,2],"glass",2,"midin",600];};
+
+	//Stahlbarren	
+	case "steel": {[["ironr","coal"],[4,2],"steel",1,"midin",5000];};
+	case "steel2": {[["ironr","coal"],[4,2],"steel",2,"highin",5000];};
+
+	//Titanbarren
+	case "titan": {[["titanore","coal"],[3,2],"titan",1,"midin",5000];};
+	case "titan2": {[["titanore","coal"],[3,2],"titan",2,"highin",5000];};
+
+	// Uran
+	case "uran": {[["uranu"],[4],"uranp",3,"highin",10000];};
+
+	//Goldbarren
+	case "gold": {[["goldore","coal"],[4,1],"goldbar",1,"midin",5000];};
+
+		//Goldschmuck
+		case "goldr1": {[["goldbar"],[1],"goldring",3,"schmuck1",5000];};
+		case "goldr2": {[["goldbar"],[2],"goldcollier",3,"schmuck1",5000];};
+	
+	//Safir
+	case "safir": {[["safiru"],[3],"safirp",2,"edel1",5000];};
+
+			//Safir Schmuck
+			case "safir2": {[["safirp","goldring"],[5,1],"safirring",1,"schmuck2",5000];};
+			case "safir3": {[["safirp","goldcollier"],[10,1],"safircollier",1,"schmuck2",5000];};
+
+	//Diamant
+	case "diamond": {[["diamond"],[3],"diamondr",2,"edel2",1100];};
+
+			//Diamant Schmuck
+			case "diamond2": {[["diamondr","goldring"],[5,1],"diamondring",1,"schmuck2",1100];};
+			case "diamond3": {[["diamondr","goldcollier"],[10,1],"diamondcollier",1,"schmuck2",1100];};
+	//waffenteile
+	case "waffenteile": {[["steel","plastic"],[3,3],"waffenteile",1,"wp",1];};
+	case "patrone": {[["schwapul","projektil","phull"],[1,1,1],"patrone",1,"wp",1];};
+	case "projektil": {[["ironr"],[1],"projektil",20,"wp",1];};
+	case "phull": {[["ironr"],[1],"phull",20,"wp",1];};
+
+//Drogen + Chemische Prozesse
+
+	//Meth
+	case "meth1": {[["nspray","reiniger","salt_r"],[3,1,1],"methp1",2,"drug1",2100];};
+	case "meth2": {[["nspray","reiniger","salt_r"],[3,1,1],"methp2",2,"drug2",2100];};
+	case "meth3": {[["nspray","reiniger","salt_r"],[3,1,1],"methp3",2,"drug3",2100];};
+	
+	//LSD
+	case "lsd1": {[["lsdu"],[4],"lsdp1",2,"drug1",2100];};
+	case "lsd2": {[["lsdu"],[4],"lsdp2",2,"drug2",2100];};
+	case "lsd3": {[["lsdu"],[4],"lsdp3",2,"drug3",2100];};
+	
+	//Cannabis
+	case "marijuana1": {[["cannabis"],[2],"marijuana1",1,"drug1",500];};
+	case "marijuana2": {[["cannabis"],[2],"marijuana2",1,"drug2",500];};
+	case "marijuana3": {[["cannabis"],[2],"marijuana3",1,"drug3",500];};
+	
+	//Kokain
+	case "cocaine1": {[["cocaine"],[2],"cokep1",1,"drug1",6000];};
+	case "cocaine2": {[["cocaine"],[2],"cokep2",1,"drug2",6000];};
+	case "cocaine3": {[["cocaine"],[2],"cokep3",1,"drug3",6000];};
+	
+	//Heroin
+	case "heroin1": {[["heroinu"],[2],"heroinp1",1,"drug1",5000];};
+	case "heroin2": {[["heroinu"],[2],"heroinp2",1,"drug2",5000];};
+	case "heroin3": {[["heroinu"],[2],"heroinp3",1,"drug3",5000];};
+
+// Nahrungsmittel
+
+	//Trauben
+	case "trau": {[["trauu","flaschp"],[8,1],"traup",1,"food1",2100];};
+	case "trau2": {[["trauu","flaschp"],[6,1],"traup",1,"food2",2100];};		
+		//Mehl
+		case "mehl": {[["weizen"],[5],"mehl",1,"food1",0];};
+		//Brot
+		case "brot": {[["mehl"],[1],"brot",3,"food2",210];};
+
+	//Muscheln
+	case "musch": {[["muschu"],[1],"muschp",1,"food2",2100];};
+	
+	//Salz
+	case "salt": {[["salt"],[2],"salt_r",3,"food2",700];};
+	case "salt2": {[["salt"],[2],"salt_r",5,"food2",700];};
+
+	//Schildkröten
+	case "turtle": {[["turtle"],[1],"turtlesoup",3,"food3",1500];};
+
+	//Krabbenburger
+	case "krabbenburger": {[["krabben","brot"],[1,1],"krabbenburger",3,"food3",1500];};
+// Bauwesen
+	//Holz
+	case "holzv": {[["holz"],[1],"planke",3,"build",1500];};
+	case "coal": {[["holz"],[1],"coal",3,"build",1500];};
+
+	//Zement
+	case "rock": {[["rock"],[10],"cement",1,"build",2100];};
+
+
+	// Test files Sealdrop 
+
+	case "oil": {["oilu","oilp",1200,"Processing Oil"];};
+	case "diamond": {["diamond","diamondc",1350,"Processing Diamond"]};
+	case "heroin": {["heroinu","heroinp",2100,"Processing Heroin"]};
+	case "copper": {["copperore","copper_r",750,"Processing Copper"]};
+	case "iron": {["ironore","iron_r",1120,"Processing Iron"]};
+	case "sand": {["sand","glass",650,"Processing Sand"]};
+	case "salt": {["salt","salt_r",450,"Processing Salt"]};
+	case "cocaine": {["cocaine","cocainep",1500,"Processing Cocaine"]};
+	case "marijuana": {["cannabis","marijuana",500,"Processing Marijuana"]};
+	case "heroin": {["heroinu","heroinp",1720,"Processing Heroin"]};
+	case "cement": {["rock","cement",350,"Mixing Cement"]};
+	case "grapes": {["grapes","wine",250,"Processing Grapes into Wine"]};
+	case "moonshine": {["yeast","moonshine",250,"Moonshining",true,"mash"]};//new
+	case "meth": {["methu","methp",5000,"Cooking Meth"]};
+	case "bottledshine": {["moonshine","bottledshine",500,"Bootle Moonshine",true,"bottles"]};//new
+	case "whiskey": {["yeast","whiskey",1000,"Fermenting Whiskey",true,"rye"]};//new
+	case "beer": {["yeast","beerp",1500,"Brewing Beer",true,"hops"]};//new
+	case "bottledbeer": {["beerp","bottledbeer",500,"Bottle Beer",true,"bottles"]};//new
+	case "bottledwhiskey": {["whiskey","bottledwhiskey",500,"Bottle Whiskey",true,"bottles"]};//new
+	case "mash": {["water","mash",100,"Mixing Grain Mash",true,"cornmeal"]};//new
+    case "uranium1": {["uranium1","uranium2",5000,"Reinigung des Urans"]}; // Add this
+    case "uranium4": {["uranium4","uranium",15000,"Uran wird getrocknet"]}; // Add this
+	default {[]};
+};
+
+//initialize
+_inputItems = _productionInfo select 0;
+_inputItemsNeeded = _productionInfo select 1;
+_outputItem = _productionInfo select 2;
+_outputItemAmount = [(_productionInfo select 3),0,0,[0]] call BIS_fnc_param;
+// _licenseNeeded = _productionInfo select 4;
+_processingCost = [(_productionInfo select 5),0,0,[0]] call BIS_fnc_param;
+
+// _hasLicense = missionNamespace getVariable (([_licenseNeeded,0] call life_fnc_licenseType) select 0);
+// _itemName = [([_inputItems,0] call life_fnc_varHandle)] call life_fnc_varToStr;
+_inputItemsDeleted = true;
+_productionAmount = 9999; //infinite
+
+if ((count _inputItems) != (count _inputItemsNeeded)) exitWith 
+	{diag_log format["ERROR: ProcessMultipleItems falsch initialisiert: Anzahl InputItems ungleich Anzahl InputItem Kosten"];life_is_processing = false;};
+
+//check if the player has enough items and determine how much he can produce
+for "_x" from 0 to ((count _inputItems) - 1) do {
+	//get current amount player has
+	_itemsInv = missionNamespace getVariable ([(_inputItems select _x),0] call life_fnc_varHandle);
+	_itemsNeeded = _inputItemsNeeded select _x;
+
+	//calculate possible amount of processing cycles
+	_possibleProductionAmount = floor (_itemsInv / _itemsNeeded);
+	if (_possibleProductionAmount < _productionAmount) then {
+		_productionAmount = _possibleProductionAmount;
+	};
+};
+
+//exit if the player doenst have the required items for one process
+if (_productionAmount < 1) exitWith {
+	hint "Du hast nicht genug Materialien dabei";
+	life_is_processing = false;
+};
+
+//check for cash if the player doesnt have the license and calculate possible max production
+/* if (!_hasLicense) then {
+	//determine max production by money
+	if ((floor (life_cash / _processingCost)) < _productionAmount) then {
+		_productionAmount = floor (life_cash / _processingCost);
+	};
+};
+ */
+//exit if the player doenst have the required money for one process
+if (_productionAmount < 1) exitWith {
+	hint "Du hast nicht genug Geld dabei";
+	life_is_processing = false;
+};
+
+//Setup our progress bar. taken from tonic.
+disableSerialization;
+5 cutRsc ["life_progress","PLAIN"];
+_ui = uiNameSpace getVariable "life_progress";
+_progress = _ui displayCtrl 38201;
+_pgText = _ui displayCtrl 38202;
+_pgText ctrlSetText format["%2 (1%1)...","%","Bei der Herstellung."];
+_progress progressSetPosition 0.01;
+_cP = 0.01;	
+
+//progress bar. taken from tonic.
+while{true} do
+{
+	sleep  0.3;
+	_cP = _cP + 0.01;
+	_progress progressSetPosition _cP;
+	_pgText ctrlSetText format["%3 (%1%2)...",round(_cP * 100),"%","Bei der Herstellung."];
+	if(_cP >= 1) exitWith {};
+	if(player distance _processor > 10) exitWith {};
+};
+
+if(player distance _processor > 10) exitWith {hint "Du hast dich zu weit entfernt! Bleib dichter dran"; 5 cutText ["","PLAIN"]; life_is_processing = false;};
+
+//substract items 
+for "_x" from 0 to ((count _inputItems) - 1) do {
+	//reduce 
+	if (!([false,(_inputItems select _x),((_inputItemsNeeded select _x) * _productionAmount)] call life_fnc_handleInv)) then {
+		_inputItemsDeleted = false;
+	}
+};
+
+//add new items if players items where deleted
+_random = random(1000);
+
+if(_random <= 810) then
+{	// Succeed o.O^^
+	if (_inputItemsDeleted) then {
+	/* if (!_hasLicense) then {
+		life_cash = life_cash - (_processingCost * _productionAmount);
+	}; */
+
+	//add the new item
+	if (!([true,_outputItem,(_outputItemAmount * _productionAmount)] call life_fnc_handleInv)) then {
+		hint format["Ups. Beim produzieren ist was schiefgelaufen. Irgendein Admin ist Schuld! Ich nicht. Gruß preller"];
+		diag_log format["ERROR: fn_processMultipleItems - new item(s) are not added"];
+	};
+
+	//format output
+	_formatedProcessingInfo = "Fertig";
+	for "_x" from 0 to ((count _inputItems) - 2) do {
+		_formatedProcessingInfo = _formatedProcessingInfo; //+ format[" %1 %2,",((_inputItemsNeeded select _x) * _productionAmount),(_inputItems select _x)];
+	};
+	_formatedProcessingInfo = _formatedProcessingInfo; //+ format[" und %1 %2 zu %4 %3 verarbeitet",((_inputItemsNeeded select ((count _inputItemsNeeded) - 1)) * _productionAmount),(_inputItems select ((count _inputItems) - 1)),_outputItem,(_outputItemAmount * _productionAmount)];
+
+	5 cutText ["","PLAIN"];
+	titleText[format["%1",_formatedProcessingInfo],"PLAIN"];
+};
+
+    
+
+}
+else
+{
+    //Failed!!
+	5 cutText ["","PLAIN"];
+    titleText["Die verarbeitung ist daneben gegangen und die Ware ist weg!\nDer Penner hat's wohl einbehalten.....","PLAIN"];
+    // hint "Die verarbeitung ist daneben gegangen und die Ware ist weg";
+};
+
+life_is_processing = false;
+
+_ui = "osefStatusBar" call BIS_fnc_rscLayer;_ui cutRsc["osefStatusBar","PLAIN"];
